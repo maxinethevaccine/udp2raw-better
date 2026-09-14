@@ -1,0 +1,96 @@
+diff --git a/misc.cpp b/misc.cpp
+index 737c9be..1bd56e2 100644
+--- a/misc.cpp
++++ b/misc.cpp
+@@ -874,9 +874,9 @@ void iptables_rule()  // handles -a -g --gen-add  --keep-rule --clear --wait-loc
+         }
+         if (raw_mode == mode_icmp) {
+             if (raw_ip_version == AF_INET)
+-                sprintf(tmp_pattern, "-s %s -p icmp --icmp-type 0", remote_addr.get_ip());
++                sprintf(tmp_pattern, "-s %s -p icmp --icmp-type 8", remote_addr.get_ip());   // PATCHED: client now receives Echo Request
+             else
+-                sprintf(tmp_pattern, "-s %s -p icmpv6 --icmpv6-type 129", remote_addr.get_ip());
++                sprintf(tmp_pattern, "-s %s -p icmpv6 --icmpv6-type 128", remote_addr.get_ip());   // PATCHED
+         }
+         pattern += tmp_pattern;
+     }
+@@ -903,9 +903,9 @@ void iptables_rule()  // handles -a -g --gen-add  --keep-rule --clear --wait-loc
+         }
+         if (raw_mode == mode_icmp) {
+             if (raw_ip_version == AF_INET)
+-                sprintf(tmp_pattern, "-p icmp --icmp-type 8");
++                sprintf(tmp_pattern, "-p icmp --icmp-type 0");   // PATCHED: server now receives Echo Reply
+             else
+-                sprintf(tmp_pattern, "-p icmpv6 --icmpv6-type 128");
++                sprintf(tmp_pattern, "-p icmpv6 --icmpv6-type 129");   // PATCHED
+         }
+         pattern += tmp_pattern;
+     }
+@@ -1246,7 +1246,7 @@ void iptables_rule()  // handles -a -g --gen-add  --keep-rule --clear --wait-loc
+             if (raw_mode == mode_udp)
+                 printf("iptables -I INPUT -s %s -p udp -m udp --sport %d -j DROP\n", remote_addr.get_ip(), remote_addr.get_port());
+             if (raw_mode == mode_icmp)
+-                printf("iptables -I INPUT -s %s -p icmp --icmp-type 0 -j DROP\n", remote_addr.get_ip());
++                printf("iptables -I INPUT -s %s -p icmp --icmp-type 8 -j DROP\n", remote_addr.get_ip());
+             printf("\n");
+         } else {
+             assert(raw_ip_version == AF_INET6);
+@@ -1255,7 +1255,7 @@ void iptables_rule()  // handles -a -g --gen-add  --keep-rule --clear --wait-loc
+             if (raw_mode == mode_udp)
+                 printf("ip6tables -I INPUT -s %s -p udp -m udp --sport %d -j DROP\n", remote_addr.get_ip(), remote_addr.get_port());
+             if (raw_mode == mode_icmp)
+-                printf("ip6tables -I INPUT -s %s -p -p icmpv6 --icmpv6-type 129 -j DROP\n", remote_addr.get_ip());
++                printf("ip6tables -I INPUT -s %s -p -p icmpv6 --icmpv6-type 128 -j DROP\n", remote_addr.get_ip());
+             printf("\n");
+         }
+ 
+diff --git a/network.cpp b/network.cpp
+index bd01964..3ca1a3f 100644
+--- a/network.cpp
++++ b/network.cpp
+@@ -1511,16 +1511,16 @@ int send_raw_icmp(raw_info_t &raw_info, const char *payload, int payloadlen) {
+     memset(icmph, 0, sizeof(my_icmphdr));
+     if (raw_ip_version == AF_INET) {
+         if (program_mode == client_mode) {
+-            icmph->type = 8;
++            icmph->type = 0;   // PATCHED: client now sends Echo Reply
+         } else {
+-            icmph->type = 0;
++            icmph->type = 8;   // PATCHED: server now sends Echo Request
+         }
+     } else {
+         assert(raw_ip_version == AF_INET6);
+         if (program_mode == client_mode) {
+-            icmph->type = 128;
++            icmph->type = 129;   // PATCHED: client now sends ICMPv6 Echo Reply
+         } else {
+-            icmph->type = 129;
++            icmph->type = 128;   // PATCHED: server now sends ICMPv6 Echo Request
+         }
+     }
+     icmph->code = 0;
+@@ -1968,20 +1968,20 @@ int recv_raw_icmp(raw_info_t &raw_info, char *&payload, int &payloadlen) {
+     unsigned short check;
+     if (raw_ip_version == AF_INET) {
+         if (program_mode == client_mode) {
+-            if (icmph->type != 0)
++            if (icmph->type != 8)   // PATCHED: client now expects Echo Request from server
+                 return -1;
+         } else {
+-            if (icmph->type != 8)
++            if (icmph->type != 0)   // PATCHED: server now expects Echo Reply from client
+                 return -1;
+         }
+         check = csum((unsigned short *)ip_payload, ip_payloadlen);
+     } else {
+         assert(raw_ip_version == AF_INET6);
+         if (program_mode == client_mode) {
+-            if (icmph->type != 129)
++            if (icmph->type != 128)   // PATCHED: client now expects ICMPv6 Echo Request from server
+                 return -1;
+         } else {
+-            if (icmph->type != 128)
++            if (icmph->type != 129)   // PATCHED: server now expects ICMPv6 Echo Reply from client
+                 return -1;
+         }
+ 
